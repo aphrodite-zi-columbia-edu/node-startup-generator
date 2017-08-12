@@ -71,7 +71,7 @@ inquirer.prompt([{
         // console.log(path.join(answers.appDir, scriptName))
         // console.log(requirable(path.join(answers.appDir, scriptName)))
 
-        var location = path.join(answers.appDir, scriptName));
+        var location = path.join(answers.appDir, scriptName);
         return requirable(location) || 'Unable to \'require\' that file';
       }
     },
@@ -80,6 +80,7 @@ inquirer.prompt([{
       name     : 'appPort',
       message  : 'Port of server (PORT environment variable)',
       validate : function integerPort(port) {
+        // console.log('port', port)
         if (isNaN(parseInt(port, 10))) return 'Port must be a number';
         if (parseInt(port, 10) < 1024) return 'Priveledged ports unsupported';
         if (parseInt(port, 10) > 65535) return 'TCP Ports don\'t go that high';
@@ -114,9 +115,10 @@ inquirer.prompt([{
     }]);
   })
   .then(function (answers) {
-    console.log(answers);
+    // console.log(answers);
     templateLocals['app']['scriptName'] = answers.appScriptName;
-    templateLocals['app']['appPort'] = answers.appScriptName;
+    templateLocals['app']['port'] = parseInt(answers.appPort, 10);
+    templateLocals['app']['launchArgs'] = answers.appLaunchArgs;
     templateLocals['user'] = answers.user;
     templateLocals['group'] = answers.group;
     templateLocals['nodeEnv'] = answers.nodeEnv;
