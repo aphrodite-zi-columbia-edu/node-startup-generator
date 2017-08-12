@@ -5,6 +5,7 @@ var path = require('path');
 var inquirer = require('inquirer');
 
 var valid = require('../lib/valid');
+var template = require('../lib/template');
 
 function exists(path) {
   try {
@@ -116,14 +117,21 @@ inquirer.prompt([{
   })
   .then(function (answers) {
     // console.log(answers);
-    templateLocals['app']['scriptName'] = answers.appScriptName;
+    var scriptName = path.resolve(templateLocals['app']['dir'], answers.appScriptName);
+
+    templateLocals['app']['scriptName'] = scriptName;
     templateLocals['app']['port'] = parseInt(answers.appPort, 10);
     templateLocals['app']['launchArgs'] = answers.appLaunchArgs;
     templateLocals['user'] = answers.user;
     templateLocals['group'] = answers.group;
     templateLocals['nodeEnv'] = answers.nodeEnv;
 
-    console.log('templateLocals', templateLocals);
+    // console.log('templateLocals', templateLocals);
+
+    var result = template(templateLocals);
+    var firstThirtyLines = result.split('\n').slice(0, 30).join('\n');
+
+    console.log(firstThirtyLines);
   })
   .catch(function (error) {
     console.log('oh noes');
