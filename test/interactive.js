@@ -6,9 +6,9 @@ var path = require('path');
 var run = require('inquirer-test');
 
 var cliPath = path.resolve(__dirname, '..', 'bin', 'creator.js');
-console.log(cliPath);
+// console.log(cliPath);
 
-describe.only('a sample interactive run', function () {
+describe('a sample interactive run', function () {
   it('should produce output from the template', function (done) {
     var actions = [
       'name', run.ENTER,
@@ -21,14 +21,15 @@ describe.only('a sample interactive run', function () {
       run.ENTER   // env
     ];
 
-    run(cliPath, actions, 100).then(function (output) {
-      var lines = output.split('\n')
-      var firstLineOfTemplate = fs.readFileSync(path.join(__dirname, '..', 'lib', 'scriptTemplate.hbs')).toString('utf-8').split('\n')[0];
-      var scriptStart = lines.indexOf(firstLineOfTemplate);
-      var script = lines.slice(scriptStart).join('\n');
-      var known_good_output = script.split('\n').slice(0, 30).join('\n');
+    run(cliPath, actions, 100)
+      .then(function (output) {
+        var lines = output.split('\n')
+        var firstLineOfTemplate = fs.readFileSync(path.join(__dirname, '..', 'lib', 'scriptTemplate.hbs')).toString('utf-8').split('\n')[0];
+        var scriptStart = lines.indexOf(firstLineOfTemplate);
+        var script = lines.slice(scriptStart).join('\n');
+        var known_good_output = script.split('\n').slice(0, 30).join('\n');
 
-      expect(known_good_output).to.equal(`#!/bin/sh
+        expect(known_good_output).to.equal(`#!/bin/sh
 
 ###############
 
@@ -58,8 +59,11 @@ NODE_APP="/usr/local/lib/node_modules/npm/lib/npm.js"
 KWARGS=""
 CONFIG_DIR="$APP_DIR"
 PID_DIR="$APP_DIR/pid"`);
-      done();
-    });
+        done();
+      })
+      .catch(function (error) {
+        throw error;
+      });
   }).timeout(0);
 });
 
