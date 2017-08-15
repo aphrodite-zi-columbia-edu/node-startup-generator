@@ -85,7 +85,7 @@ function writeToInitdPrintCommandAndExit(result, name) {
 
     sudo update-rc.d ${name} defaults
   `;
-  console.log(msg);
+  console.log(stripIndent(msg));
   process.exit(0);
 }
 

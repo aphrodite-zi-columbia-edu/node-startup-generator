@@ -1,6 +1,6 @@
 {
   "name": "node-init-script-creator",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Create init.d scripts for node apps from a template.",
   "main": "index.js",
   "bin": {
