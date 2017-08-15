@@ -5,7 +5,7 @@ var path = require('path');
 
 var run = require('inquirer-test');
 
-var cliPath = path.resolve(__dirname, '..', 'bin', 'creator.js');
+var cliPath = path.resolve(__dirname, '..', 'lib', 'promptUser.js');
 // console.log(cliPath);
 
 describe('a sample interactive run', function () {

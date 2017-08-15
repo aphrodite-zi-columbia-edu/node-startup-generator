@@ -3,9 +3,10 @@ var fs = require('fs');
 var path = require('path');
 
 var inquirer = require('inquirer');
+var stripIndent = require('strip-indent');
 
-var valid = require('../lib/valid');
 var template = require('../lib/template');
+var promptUser = require('../lib/promptUser');
 
 function exists(path) {
   try {
@@ -23,117 +24,128 @@ function requirable(module) {
   catch (e) { return false; }
 }
 
-var templateLocals = {
-  app: {
-    name       : null,
-    dir        : null,
-    scriptName : null,
-    port       : null,
-    launchArgs : null
-  },
-  user: null,
-  group: null,
-  nodeEnv: null
+function promptConfirm(message, callback) {
+  inquirer.prompt([{
+    type: 'confirm',
+    name: 'confirm',
+    message: message,
+    default: true
+  }])
+    .then((answer) => { callback(null, answer.confirm); })
+    .catch((error) => { callback(error); });
 }
 
-inquirer.prompt([{
-  type       : 'input',
-  name       : 'appName',
-  message    : 'Enter App Name',
-  validate   : (i) => (valid(i) || 'Please use only alphanumeric, -, and _')
-},
-{
-  type       : 'input',
-  name       : 'appDir',
-  message    : 'Enter the app\'s directory',
-  validate   : (i) => (exists(i) || 'File Not Found')
-}])
-  .then(function (answers) {
-    // console.log(answers);
-    templateLocals['app']['name'] = answers.appName;
-    templateLocals['app']['dir'] = answers.appDir;
+var outputOptions = ['Standard Error', 'Temporary File'];
+function promptSelectOutput(name, callback) {
+  outputOptions.push(('/etc/init.d/' + name));
 
-    function getMainFromPackage(dir) {
-      try {
-        var package = require(path.join(dir, 'package'));
-        return package.main;
-      } catch (notFoundError) {
-        return null;
+  inquirer.prompt([{
+    type: 'list',
+    name: 'output',
+    message: 'What to do with final output?',
+    choices: outputOptions
+  }])
+    .then((answer) => { callback(null, answer.output); })
+    .catch((error) => { callback(error); });
+}
+
+function writeToStdErrSyncAndExit(result) {
+  // console.log("result", result);
+  process.stderr.write(result);
+  console.log('File written to standard error stream.');
+  process.exit(0);
+}
+
+var tmp = require('tmp');
+function writeToTmpFilePrintCommandsAndExit(result, name) {
+  var tmpobj = tmp.fileSync({ keep: true, mode: 0o755 });
+  fs.writeSync(tmpobj.fd, result);
+  var msg = `
+    File written:   ${tmpobj.name}
+
+    # Copy this file to init.d to enable it: (double click to select whole line)
+
+    sudo cp "${tmpobj.name}" "/etc/init.d/${name}"
+
+    # Then update systemd to recognize a startup service:
+
+    sudo update-rc.d ${name} defaults
+  `;
+  console.log(stripIndent(msg));
+  process.exit(0);
+}
+
+function writeToInitdPrintCommandAndExit(result, name) {
+  fs.writeFileSync(`/etc/init.d/${name}`, result, { mode: 0o755 });
+
+  var msg = `
+    File Written: /etc/init.d/${name}
+
+    Update systemd to recognize a startup service:
+
+    sudo update-rc.d ${name} defaults
+  `;
+  console.log(msg);
+  process.exit(0);
+}
+
+/**
+ * Organized thusly to be maximally self-explanatory and manually testable.
+ */
+function creator() {
+  return promptUser(function (err, locals) {
+    if (err) throw err;
+
+    var result = template(locals);
+    console.log(result.split('\n').slice(0, 37).join('\n'));
+
+    return promptConfirm('Looks good?', function (err, confirmed) {
+      if (err) throw err;
+
+      if (confirmed)
+        return promptSelectOutput(locals.app.name, function (err, output) {
+          if (err) throw err;
+          
+          if (output === 'Standard Error') {
+            return writeToStdErrSyncAndExit(result);
+          }
+
+          else if (output === 'Temporary File') {
+            return writeToTmpFilePrintCommandsAndExit(result, locals.app.name);
+          }
+
+          else if (output.indexOf('/etc/init.d/') > -1) {
+            if (exists(output)) {
+              console.log('');
+              console.log('*** File already Exists, creating tmp file. ***');
+              console.log('');
+              return writeToTmpFilePrintCommandsAndExit(result, locals.app.name);
+            }
+
+            if (process.getuid() !== 0) {
+              console.log('');
+              console.log('*** Need to be sudo to write to /etc/init.d/, creating tmp file. ***');
+              console.log('');
+              return writeToTmpFilePrintCommandsAndExit(result, locals.app.name);
+            }
+
+            else {
+              return writeToInitdPrintCommandAndExit(result, locals.app.name);
+            }
+          }
+        });
+
+      // not confirmed
+      else {
+        return promptConfirm('SysV script already exists, try again?', function (err, confirmed) {
+          if (confirmed) { process.nextTick(() => creator() ); }
+          else { console.log('Bye!'); process.exit(1); }
+        });
       }
-    }
-
-    return inquirer.prompt([{
-      type     : 'input',
-      name     : 'appScriptName',
-      message  : 'Enter App Main file',
-      default  : getMainFromPackage(answers.appDir),
-      validate : function validateAppScript(scriptName) {
-        // FIXME json fileext is also requirable.
-        // console.log(path.join(answers.appDir, scriptName))
-        // console.log(requirable(path.join(answers.appDir, scriptName)))
-
-        var location = path.join(answers.appDir, scriptName);
-        return requirable(location) || 'Unable to \'require\' that file';
-      }
-    },
-    {
-      type     : 'input',
-      name     : 'appPort',
-      message  : 'Port of server (PORT environment variable)',
-      validate : function integerPort(port) {
-        // console.log('port', port)
-        if (isNaN(parseInt(port, 10))) return 'Port must be a number';
-        if (parseInt(port, 10) < 1024) return 'Priveledged ports unsupported';
-        if (parseInt(port, 10) > 65535) return 'TCP Ports don\'t go that high';
-        return true;
-      }
-    },
-    {
-      type     : 'input',
-      name     : 'appLaunchArgs',
-      message  : 'Command line arguments to start the app with',
-      default  : ''
-    },
-    {
-      type     : 'input',
-      name     : 'user',
-      message  : 'User to start the app as',
-      default  : process.env['USER']
-      // TODO integrate with https://www.npmjs.com/package/linux-user
-    },
-    {
-      type     : 'input',
-      name     : 'group',
-      message  : 'Group to start the app as',
-      default  : process.env['USER']
-      // TODO integrate with https://www.npmjs.com/package/linux-user
-    },
-    {
-      type     : 'input',
-      name     : 'nodeEnv',
-      message  : 'NODE_ENV environment variable provided to app',
-      default  : 'production'
-    }]);
-  })
-  .then(function (answers) {
-    // console.log(answers);
-    var scriptName = path.resolve(templateLocals['app']['dir'], answers.appScriptName);
-
-    templateLocals['app']['scriptName'] = scriptName;
-    templateLocals['app']['port'] = parseInt(answers.appPort, 10);
-    templateLocals['app']['launchArgs'] = answers.appLaunchArgs;
-    templateLocals['user'] = answers.user;
-    templateLocals['group'] = answers.group;
-    templateLocals['nodeEnv'] = answers.nodeEnv;
-
-    // console.log('templateLocals', templateLocals);
-
-    var result = template(templateLocals);
-    var firstThirtyLines = result.split('\n').slice(0, 30).join('\n');
-
-    console.log(firstThirtyLines);
-  })
-  .catch(function (error) {
-    console.log('oh noes');
-    throw error;
+    });
   });
+}
+
+if (require.main === module) {
+  creator();
+}

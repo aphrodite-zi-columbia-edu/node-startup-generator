@@ -25,7 +25,9 @@
   "license": "ISC",
   "dependencies": {
     "handlebars": "^4.0.10",
-    "inquirer": "^3.2.1"
+    "inquirer": "^3.2.1",
+    "strip-indent": "^2.0.0",
+    "tmp": "0.0.33"
   },
   "devDependencies": {
     "chai": "^4.1.1",
