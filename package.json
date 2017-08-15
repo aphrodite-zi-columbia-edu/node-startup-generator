@@ -24,6 +24,7 @@
   "author": "Dave Ankin <daveankin@gmail.com>",
   "license": "ISC",
   "dependencies": {
+    "find-package-json": "^1.0.0",
     "handlebars": "^4.0.10",
     "inquirer": "^3.2.1",
     "strip-indent": "^2.0.0",
